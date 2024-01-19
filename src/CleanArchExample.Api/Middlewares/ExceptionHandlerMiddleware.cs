@@ -14,30 +14,33 @@ namespace CleanArchExample.Api.Middlewares
             _logger = logger;
         }
 
-        public async Task InvokeAsync(HttpContext context)
+       public async Task InvokeAsync(HttpContext context)
+{
+    try
+    {
+        _logger.LogInformation($"Starting");
+        await _next.Invoke(context);
+        _logger.LogInformation($"Finished without errors");
+    }
+    catch (Exception ex)
+    {
+        var errorId = Guid.NewGuid();
+        if (!context.Response.HasStarted)
         {
-            try
-            {
-                await _next.Invoke(context);
-            }
-            catch (Exception ex)
-            {
-                var errorId = Guid.NewGuid();
-                if (!context.Response.HasStarted)
-                {
-                    context.Response.StatusCode = 500;
-                    context.Response.ContentType = "application/json";
+            context.Response.StatusCode = 500;
+            context.Response.ContentType = "application/json";
 
-                    await context.Response.WriteAsJsonAsync(new
-                    {
-                        ErrorId = errorId,
-                        Messages = new List<string> { "Ocorreu um erro inesperado. Contate o suporte." }
-                    });
-                }
-
-                var route = context.Request.Path.ToString().ToLower().Trim('/');
-                _logger.LogError(ex, $"Id: ${errorId}, Rota: {route}");
-            }
+            await context.Response.WriteAsJsonAsync(new
+            {
+                ErrorId = errorId,
+                Messages = new List<string> { "Ocorreu um erro inesperado." }
+            });
         }
+        using (LogContext.PushProperty("ErrorId", errorId))
+        {
+            _logger.LogError(ex, "Finished with error");
+        }
+    }
+}
     }
 }
